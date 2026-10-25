@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authenticated() {
+      return request.auth != null;
+    }
+
+    function hospitalMember(hospitalId) {
+      return authenticated()
+        && request.auth.token.hospitalId == hospitalId
+        && request.auth.token.role in [
+          'physician',
+          'nurse',
+          'allied-health',
+          'administrator'
+        ];
+    }
+
+    function noteFieldsAreValid() {
+      return request.resource.data.keys().hasOnly([
+        'hospitalId',
+        'patientId',
+        'encounterId',
+        'type',
+        'title',
+        'body',
+        'status',
+        'authorId',
+        'authorName',
+        'createdAt',
+        'updatedAt',
+        'signedAt'
+      ])
+      && request.resource.data.title is string
+      && request.resource.data.title.size() <= 180
+      && request.resource.data.body is string
+      && request.resource.data.body.size() <= 50000
+      && request.resource.data.status in ['draft', 'signed'];
+    }
+
+    match /patients/{patientId} {
+      allow read: if hospitalMember(resource.data.hospitalId);
+      allow create: if hospitalMember(request.resource.data.hospitalId)
+        && request.auth.token.role == 'administrator';
+      allow update: if hospitalMember(resource.data.hospitalId)
+        && request.resource.data.hospitalId == resource.data.hospitalId;
+      allow delete: if false;
+    }
+
+    match /clinicalNotes/{noteId} {
+      allow read: if hospitalMember(resource.data.hospitalId);
+      allow create: if hospitalMember(request.resource.data.hospitalId)
+        && request.resource.data.authorId == request.auth.uid
+        && noteFieldsAreValid();
+      allow update: if hospitalMember(resource.data.hospitalId)
+        && request.resource.data.hospitalId == resource.data.hospitalId
+        && request.resource.data.patientId == resource.data.patientId
+        && request.resource.data.authorId == resource.data.authorId
+        && noteFieldsAreValid()
+        && (
+          resource.data.status == 'draft'
+          || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'signedAt', 'updatedAt'])
+        );
+      allow delete: if false;
+    }
+
+    match /auditEvents/{eventId} {
+      allow read: if hospitalMember(resource.data.hospitalId)
+        && request.auth.token.role == 'administrator';
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

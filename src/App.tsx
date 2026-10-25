@@ -386,6 +386,7 @@ function App() {
               <div className="patient-metadata">
                 <div><span>Location</span><strong>{selectedPatient.room}</strong></div>
                 <div><span>Medical record</span><strong>{selectedPatient.mrn}</strong></div>
+                <div><span>Primary concern</span><strong>{selectedPatient.condition}</strong></div>
                 <div>
                   <span>Allergies</span>
                   <strong className={selectedPatient.allergies.length ? 'allergy' : ''}>

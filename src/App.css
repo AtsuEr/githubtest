@@ -116,7 +116,7 @@ button { cursor: pointer; }
 .patient-heading { flex: 1; display: flex; align-items: center; gap: 10px; }
 .patient-heading > div { display: grid; gap: 2px; }
 .patient-heading span:not(.status) { color: var(--muted); font-size: 10px; }
-.patient-metadata { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 20px 17px; border: 1px solid var(--line); border-radius: 9px; background: #fafcfc; }
+.patient-metadata { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 20px 17px; border: 1px solid var(--line); border-radius: 9px; background: #fafcfc; }
 .patient-metadata div { display: grid; gap: 4px; padding: 10px 13px; border-right: 1px solid var(--line); }
 .patient-metadata div:last-child { border-right: 0; }
 .patient-metadata span { color: #84929a; font-size: 9px; text-transform: uppercase; letter-spacing: .5px; }

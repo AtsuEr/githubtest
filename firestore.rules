@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authenticated() {
+      return request.auth != null;
+    }
+
+    function hasClinicalRole() {
+      return request.auth.token.role in [
+        'physician',
+        'nurse',
+        'allied-health',
+        'administrator'
+      ];
+    }
+
+    function hospitalMember(hospitalId) {
+      return authenticated()
+        && request.auth.token.hospitalId == hospitalId
+        && hasClinicalRole();
+    }
+
+    function administrator(hospitalId) {
+      return hospitalMember(hospitalId)
+        && request.auth.token.role == 'administrator';
+    }
+
+    function validNoteShape() {
+      return request.resource.data.keys().hasAll([
+        'hospitalId',
+        'patientId',
+        'encounterId',
+        'type',
+        'title',
+        'body',
+        'status',
+        'authorId',
+        'authorName',
+        'createdAt',
+        'updatedAt'
+      ])
+      && request.resource.data.keys().hasOnly([
+        'hospitalId',
+        'patientId',
+        'encounterId',
+        'type',
+        'title',
+        'body',
+        'status',
+        'authorId',
+        'authorName',
+        'createdAt',
+        'updatedAt',
+        'signedAt'
+      ])
+      && request.resource.data.hospitalId is string
+      && request.resource.data.patientId is string
+      && request.resource.data.encounterId is string
+      && request.resource.data.type in [
+        'Progress note',
+        'Nursing note',
+        'Consultation',
+        'Discharge summary'
+      ]
+      && request.resource.data.title is string
+      && request.resource.data.title.size() > 0
+      && request.resource.data.title.size() <= 180
+      && request.resource.data.body is string
+      && request.resource.data.body.size() > 0
+      && request.resource.data.body.size() <= 50000
+      && request.resource.data.authorId is string
+      && request.resource.data.authorName is string
+      && request.resource.data.authorName.size() <= 180
+      && request.resource.data.status in ['draft', 'signed'];
+    }
+
+    function immutableNoteIdentity() {
+      return request.resource.data.hospitalId == resource.data.hospitalId
+        && request.resource.data.patientId == resource.data.patientId
+        && request.resource.data.encounterId == resource.data.encounterId
+        && request.resource.data.authorId == resource.data.authorId
+        && request.resource.data.authorName == resource.data.authorName
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function authorOwnsNote() {
+      return request.auth.uid == resource.data.authorId;
+    }
+
+    function validDraftEdit() {
+      return resource.data.status == 'draft'
+        && request.resource.data.status == 'draft'
+        && authorOwnsNote()
+        && immutableNoteIdentity()
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['type', 'title', 'body', 'updatedAt']);
+    }
+
+    function validSignature() {
+      return resource.data.status == 'draft'
+        && request.resource.data.status == 'signed'
+        && authorOwnsNote()
+        && immutableNoteIdentity()
+        && request.resource.data.signedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'signedAt', 'updatedAt']);
+    }
+
+    match /patients/{patientId} {
+      allow read: if hospitalMember(resource.data.hospitalId);
+      allow create: if administrator(request.resource.data.hospitalId);
+      allow update: if administrator(resource.data.hospitalId)
+        && request.resource.data.hospitalId == resource.data.hospitalId;
+      allow delete: if false;
+    }
+
+    match /clinicalNotes/{noteId} {
+      allow read: if hospitalMember(resource.data.hospitalId);
+      allow create: if hospitalMember(request.resource.data.hospitalId)
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && !request.resource.data.keys().hasAny(['signedAt'])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validNoteShape();
+      allow update: if hospitalMember(resource.data.hospitalId)
+        && validNoteShape()
+        && (validDraftEdit() || validSignature());
+      allow delete: if false;
+    }
+
+    match /auditEvents/{eventId} {
+      allow read: if administrator(resource.data.hospitalId);
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

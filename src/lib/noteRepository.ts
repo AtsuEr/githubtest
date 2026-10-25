@@ -76,6 +76,9 @@ export const listPatientNotes = async (
 export const createClinicalNote = async (
   note: CreateClinicalNote,
 ): Promise<string> => {
+  if (note.status !== 'draft') {
+    throw new Error('Clinical notes must be saved as drafts before signing')
+  }
   const document = await addDoc(collection(db, 'clinicalNotes'), {
     ...note,
     createdAt: serverTimestamp(),

@@ -33,6 +33,25 @@ The interface uses safe demo data when Firebase variables are not configured.
 
 Use the local emulators with `VITE_USE_FIREBASE_EMULATORS=true`.
 
+## Security rules
+
+Firestore rules enforce:
+
+- Hospital-level tenant isolation through trusted Firebase custom claims
+- Allowed clinical roles on every read and write
+- Author ownership for draft edits and signatures
+- Server-controlled creation, update, and signature timestamps
+- Immutable patient, encounter, author, and hospital identifiers
+- One-way draft-to-signed transitions, with signed notes fully immutable
+- Administrator-only patient writes
+- Server-only audit event writes
+
+Run the emulator-backed security suite with Java 21 or newer:
+
+```bash
+npm run test:rules
+```
+
 ## Clinical safety boundary
 
 This repository is a product prototype, not a production electronic health record. Before real patient data is used, complete a formal threat model, HIPAA or applicable regional compliance review, business associate agreements, retention policy, immutable server-side audit logging, disaster recovery, clinical validation, and integration testing with the hospital identity and ADT systems.
